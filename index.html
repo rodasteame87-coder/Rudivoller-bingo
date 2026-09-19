@@ -1,0 +1,291 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rudivoller Bingo</title><style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: #10131a;
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    padding: 20px 10px;
+}
+
+h1 {
+    margin: 10px 0 5px;
+}
+
+#status {
+    margin: 10px 0 15px;
+    color: #aaa;
+}
+
+.card {
+    width: min(94vw, 420px);
+    margin: auto;
+}
+
+.headers,
+.grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 5px;
+}
+
+.headers div {
+    font-size: 22px;
+    font-weight: bold;
+    padding: 8px 0;
+}
+
+.cell {
+    aspect-ratio: 1 / 1;
+    background: #1d2430;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(18px, 6vw, 28px);
+    font-weight: bold;
+}
+
+.cell.called {
+    background: #f5b400;
+    color: #111;
+}
+
+.cell.free {
+    background: #555;
+    color: white;
+    font-size: 16px;
+}
+
+button {
+    border: none;
+    border-radius: 10px;
+    padding: 14px 25px;
+    margin-top: 20px;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+#bingoBtn {
+    background: #e53935;
+    color: white;
+}
+
+#message {
+    margin-top: 15px;
+    min-height: 25px;
+    font-weight: bold;
+}
+</style></head><body><h1>🎯 Rudivoller Bingo</h1><div id="status">Joining game...</div><div class="card"><div class="headers">
+    <div>B</div>
+    <div>I</div>
+    <div>N</div>
+    <div>G</div>
+    <div>O</div>
+</div>
+
+<div id="grid" class="grid"></div>
+
+</div><button id="bingoBtn">🎉 BINGO!</button>
+
+<div id="message"></div><script>
+let userId = null;
+let card = [];
+let called = [];
+
+function getTelegramUser() {
+    if (
+        window.Telegram &&
+        window.Telegram.WebApp &&
+        window.Telegram.WebApp.initDataUnsafe &&
+        window.Telegram.WebApp.initDataUnsafe.user
+    ) {
+        return window.Telegram.WebApp.initDataUnsafe.user;
+    }
+
+    return {
+        id: "test-" + Date.now(),
+        first_name: "Player"
+    };
+}
+
+async function joinGame() {
+
+    const user = getTelegramUser();
+
+    userId = String(user.id);
+
+    const name =
+        user.first_name ||
+        user.username ||
+        "Player";
+
+    try {
+
+        const response = await fetch("/api/join", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                user_id: userId,
+                name: name
+            })
+        });
+
+        const data = await response.json();
+
+        if (!data.ok) {
+            throw new Error(data.error || "Could not join game");
+        }
+
+        card = data.card;
+
+        renderCard();
+
+        document.getElementById("status").textContent =
+            "🟢 You are in the game!";
+
+        updateState();
+
+    } catch (error) {
+
+        document.getElementById("status").textContent =
+            "❌ Could not join the game.";
+
+        document.getElementById("message").textContent =
+            error.message;
+    }
+}
+
+function renderCard() {
+
+    const grid = document.getElementById("grid");
+
+    grid.innerHTML = "";
+
+    card.forEach((number, index) => {
+
+        const cell = document.createElement("div");
+
+        cell.className = "cell";
+
+        if (index === 12) {
+
+            cell.classList.add("free");
+            cell.textContent = "FREE";
+
+        } else {
+
+            cell.textContent = number;
+
+        }
+
+        grid.appendChild(cell);
+    });
+
+    updateCalledNumbers();
+}
+
+function updateCalledNumbers() {
+
+    const cells =
+        document.querySelectorAll(".cell");
+
+    cells.forEach((cell, index) => {
+
+        if (index === 12) return;
+
+        const number = card[index];
+
+        if (called.includes(number)) {
+
+            cell.classList.add("called");
+
+        } else {
+
+            cell.classList.remove("called");
+
+        }
+    });
+}
+
+async function updateState() {
+
+    try {
+
+        const response =
+            await fetch("/api/state");
+
+        const data =
+            await response.json();
+
+        called = data.called || [];
+
+        updateCalledNumbers();
+
+    } catch (error) {
+
+        console.log(error);
+    }
+}
+
+async function claimBingo() {
+
+    if (!userId) {
+        return;
+    }
+
+    try {
+
+        const response =
+            await fetch("/api/claim", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    user_id: userId
+                })
+            });
+
+        const data =
+            await response.json();
+
+        document.getElementById("message").textContent =
+            data.message || "No response.";
+
+    } catch (error) {
+
+        document.getElementById("message").textContent =
+            "❌ Could not check Bingo.";
+    }
+}
+
+document
+    .getElementById("bingoBtn")
+    .addEventListener("click", claimBingo);
+
+if (
+    window.Telegram &&
+    window.Telegram.WebApp
+) {
+    window.Telegram.WebApp.ready();
+    window.Telegram.WebApp.expand();
+}
+
+joinGame();
+
+setInterval(updateState, 2000);
+</script></body>
+</html>
