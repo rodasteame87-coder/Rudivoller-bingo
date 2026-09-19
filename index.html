@@ -2,32 +2,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rudivoller Bingo</title><style>
-* {
-    box-sizing: border-box;
-}
-
+<title>Rudivoller Bingo</title><script src="https://telegram.org/js/telegram-web-app.js"></script><style>
 body {
     margin: 0;
-    min-height: 100vh;
+    padding: 20px 10px;
     background: #10131a;
     color: white;
     font-family: Arial, sans-serif;
     text-align: center;
-    padding: 20px 10px;
 }
 
 h1 {
-    margin: 10px 0 5px;
+    margin-bottom: 5px;
 }
 
 #status {
-    margin: 10px 0 15px;
+    margin: 10px;
     color: #aaa;
 }
 
-.card {
-    width: min(94vw, 420px);
+.board {
+    max-width: 420px;
     margin: auto;
 }
 
@@ -39,96 +34,86 @@ h1 {
 }
 
 .headers div {
+    padding: 8px;
     font-size: 22px;
     font-weight: bold;
-    padding: 8px 0;
 }
 
 .cell {
-    aspect-ratio: 1 / 1;
-    background: #1d2430;
-    border-radius: 8px;
+    aspect-ratio: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: clamp(18px, 6vw, 28px);
+    background: #252c38;
+    border-radius: 8px;
+    font-size: 25px;
     font-weight: bold;
 }
 
 .cell.called {
     background: #f5b400;
-    color: #111;
+    color: black;
 }
 
-.cell.free {
+.free {
     background: #555;
-    color: white;
-    font-size: 16px;
+    font-size: 15px;
 }
 
 button {
-    border: none;
-    border-radius: 10px;
-    padding: 14px 25px;
     margin-top: 20px;
-    font-size: 18px;
-    font-weight: bold;
-    cursor: pointer;
-}
-
-#bingoBtn {
+    padding: 14px 30px;
+    border: 0;
+    border-radius: 10px;
     background: #e53935;
     color: white;
+    font-size: 18px;
+    font-weight: bold;
 }
 
 #message {
     margin-top: 15px;
-    min-height: 25px;
-    font-weight: bold;
 }
-</style></head><body><h1>🎯 Rudivoller Bingo</h1><div id="status">Joining game...</div><div class="card"><div class="headers">
-    <div>B</div>
-    <div>I</div>
-    <div>N</div>
-    <div>G</div>
-    <div>O</div>
-</div>
-
-<div id="grid" class="grid"></div>
-
-</div><button id="bingoBtn">🎉 BINGO!</button>
+</style></head><body><h1>🎯 Rudivoller Bingo</h1><div id="status">Connecting to Telegram...</div><div class="board"><div class="headers">
+<div>B</div>
+<div>I</div>
+<div>N</div>
+<div>G</div>
+<div>O</div>
+</div><div id="grid" class="grid"></div></div><button onclick="claimBingo()">🎉 BINGO!</button>
 
 <div id="message"></div><script>
+
+const tg = window.Telegram.WebApp;
+
+tg.ready();
+tg.expand();
+
 let userId = null;
 let card = [];
 let called = [];
 
-function getTelegramUser() {
-    if (
-        window.Telegram &&
-        window.Telegram.WebApp &&
-        window.Telegram.WebApp.initDataUnsafe &&
-        window.Telegram.WebApp.initDataUnsafe.user
-    ) {
-        return window.Telegram.WebApp.initDataUnsafe.user;
-    }
-
-    return {
-        id: "test-" + Date.now(),
-        first_name: "Player"
-    };
+function show(message) {
+    document.getElementById("message").textContent = message;
 }
 
 async function joinGame() {
 
-    const user = getTelegramUser();
+    const user = tg.initDataUnsafe.user;
+
+    if (!user) {
+        document.getElementById("status").textContent =
+            "❌ Telegram user information not available.";
+
+        show("Please open the game using the Telegram bot button.");
+
+        return;
+    }
 
     userId = String(user.id);
 
-    const name =
-        user.first_name ||
-        user.username ||
-        "Player";
+    document.getElementById("status").textContent =
+        "Joining Bingo...";
 
     try {
 
@@ -139,84 +124,87 @@ async function joinGame() {
             },
             body: JSON.stringify({
                 user_id: userId,
-                name: name
+                name: user.first_name || "Player"
             })
         });
 
         const data = await response.json();
 
         if (!data.ok) {
-            throw new Error(data.error || "Could not join game");
+            throw new Error(
+                data.error || "Could not join the game"
+            );
         }
 
         card = data.card;
 
-        renderCard();
+        drawCard();
 
         document.getElementById("status").textContent =
-            "🟢 You are in the game!";
+            "🟢 Joined Bingo successfully!";
+
+        show("Your Bingo card is ready.");
 
         updateState();
 
     } catch (error) {
 
         document.getElementById("status").textContent =
-            "❌ Could not join the game.";
+            "❌ Failed to join.";
 
-        document.getElementById("message").textContent =
-            error.message;
+        show(error.message);
     }
 }
 
-function renderCard() {
+function drawCard() {
 
-    const grid = document.getElementById("grid");
+    const grid =
+        document.getElementById("grid");
 
     grid.innerHTML = "";
 
-    card.forEach((number, index) => {
+    for (let i = 0; i < card.length; i++) {
 
-        const cell = document.createElement("div");
+        const cell =
+            document.createElement("div");
 
         cell.className = "cell";
 
-        if (index === 12) {
+        if (i === 12) {
 
             cell.classList.add("free");
             cell.textContent = "FREE";
 
         } else {
 
-            cell.textContent = number;
+            cell.textContent = card[i];
 
+            cell.onclick = function() {
+
+                cell.classList.toggle("called");
+
+            };
         }
 
         grid.appendChild(cell);
-    });
+    }
 
-    updateCalledNumbers();
+    updateCalled();
 }
 
-function updateCalledNumbers() {
+function updateCalled() {
 
     const cells =
         document.querySelectorAll(".cell");
 
-    cells.forEach((cell, index) => {
+    cells.forEach((cell, i) => {
 
-        if (index === 12) return;
+        if (i === 12) return;
 
-        const number = card[index];
-
-        if (called.includes(number)) {
-
+        if (called.includes(card[i])) {
             cell.classList.add("called");
-
-        } else {
-
-            cell.classList.remove("called");
-
         }
+
     });
 }
 
@@ -232,17 +220,21 @@ async function updateState() {
 
         called = data.called || [];
 
-        updateCalledNumbers();
+        updateCalled();
 
     } catch (error) {
 
         console.log(error);
+
     }
 }
 
 async function claimBingo() {
 
     if (!userId) {
+
+        show("❌ You have not joined the game.");
+
         return;
     }
 
@@ -262,30 +254,18 @@ async function claimBingo() {
         const data =
             await response.json();
 
-        document.getElementById("message").textContent =
-            data.message || "No response.";
+        show(data.message || "Bingo checked.");
 
     } catch (error) {
 
-        document.getElementById("message").textContent =
-            "❌ Could not check Bingo.";
+        show("❌ Could not check Bingo.");
+
     }
-}
-
-document
-    .getElementById("bingoBtn")
-    .addEventListener("click", claimBingo);
-
-if (
-    window.Telegram &&
-    window.Telegram.WebApp
-) {
-    window.Telegram.WebApp.ready();
-    window.Telegram.WebApp.expand();
 }
 
 joinGame();
 
 setInterval(updateState, 2000);
+
 </script></body>
 </html>
