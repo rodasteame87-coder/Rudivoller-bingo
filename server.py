@@ -2,7 +2,7 @@ import os
 import random
 import threading
 from flask import Flask, jsonify, request, send_from_directory
-
+from bot import start_bot_thread
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(
@@ -19,7 +19,8 @@ game = {
     "players": {},
     "winners": []
 }
-
+# Start Telegram bot
+start_bot_thread()
 
 def make_card():
     """
