@@ -246,6 +246,15 @@ def claim_bingo():
             "bingo": False,
             "message": "No Bingo yet."
         })
+        @app.get("/api/debug")
+def debug():
+    with lock:
+        return jsonify({
+            "players": game["players"],
+            "player_count": len(game["players"]),
+            "running": game["running"],
+            "called": game["called"]
+        })
 
 
 # ==================================================
