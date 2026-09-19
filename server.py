@@ -1,8 +1,8 @@
 import os
 import random
-import threading
-
 from flask import Flask, jsonify, request, send_from_directory
+
+from game_state import game, lock, make_card, check_bingo
 from bot import start_bot_thread
 
 
@@ -16,96 +16,8 @@ app = Flask(
 )
 
 
-lock = threading.Lock()
-
-
-game = {
-    "running": False,
-    "called": [],
-    "players": {},
-    "winners": []
-}
-
-
 # Start Telegram bot
 start_bot_thread()
-
-
-def make_card():
-    """
-    Create a standard 5x5 Bingo card.
-
-    B: 1-15
-    I: 16-30
-    N: 31-45
-    G: 46-60
-    O: 61-75
-    """
-
-    columns = [
-        random.sample(range(1, 16), 5),
-        random.sample(range(16, 31), 5),
-        random.sample(range(31, 46), 5),
-        random.sample(range(46, 61), 5),
-        random.sample(range(61, 76), 5)
-    ]
-
-    card = []
-
-    for row in range(5):
-        for column in range(5):
-            card.append(columns[column][row])
-
-    # Free center
-    card[12] = 0
-
-    return card
-
-
-def check_bingo(card, called):
-    called_numbers = set(called)
-
-    marked = set()
-
-    for index, number in enumerate(card):
-
-        if index == 12:
-            marked.add(index)
-
-        elif number in called_numbers:
-            marked.add(index)
-
-    # Rows
-    for row in range(5):
-
-        line = {
-            row * 5 + column
-            for column in range(5)
-        }
-
-        if line.issubset(marked):
-            return True
-
-    # Columns
-    for column in range(5):
-
-        line = {
-            row * 5 + column
-            for row in range(5)
-        }
-
-        if line.issubset(marked):
-            return True
-
-    # Diagonal 1
-    if {0, 6, 12, 18, 24}.issubset(marked):
-        return True
-
-    # Diagonal 2
-    if {4, 8, 12, 16, 20}.issubset(marked):
-        return True
-
-    return False
 
 
 # ==================================================
@@ -123,7 +35,6 @@ def home():
 
 @app.get("/health")
 def health():
-
     return jsonify({
         "ok": True,
         "service": "Rudivoller Bingo",
@@ -139,12 +50,11 @@ def health():
 def get_state():
 
     with lock:
-
         return jsonify({
             "running": game["running"],
-            "called": game["called"],
+            "called": list(game["called"]),
             "players": len(game["players"]),
-            "winners": game["winners"]
+            "winners": list(game["winners"])
         })
 
 
@@ -166,7 +76,6 @@ def join_game():
     ).strip()
 
     if not user_id:
-
         return jsonify({
             "ok": False,
             "error": "user_id is required"
@@ -236,7 +145,6 @@ def call_number():
     with lock:
 
         if not game["running"]:
-
             return jsonify({
                 "ok": False,
                 "error": "Game is not running."
@@ -255,7 +163,7 @@ def call_number():
             return jsonify({
                 "ok": True,
                 "finished": True,
-                "message": "All numbers have been called."
+                "message": "All 75 numbers have been called."
             })
 
         number = random.choice(available)
@@ -264,16 +172,12 @@ def call_number():
 
         if number <= 15:
             letter = "B"
-
         elif number <= 30:
             letter = "I"
-
         elif number <= 45:
             letter = "N"
-
         elif number <= 60:
             letter = "G"
-
         else:
             letter = "O"
 
@@ -299,7 +203,6 @@ def claim_bingo():
     ).strip()
 
     if not user_id:
-
         return jsonify({
             "ok": False,
             "error": "user_id is required"
@@ -310,14 +213,12 @@ def claim_bingo():
         player = game["players"].get(user_id)
 
         if not player:
-
             return jsonify({
                 "ok": False,
                 "message": "Player has not joined the game."
             }), 400
 
         if not game["running"]:
-
             return jsonify({
                 "ok": False,
                 "message": "The game is not running."
